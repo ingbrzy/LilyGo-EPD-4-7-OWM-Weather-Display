@@ -20,6 +20,10 @@
 #include "forecast_record.h"
 #include "lang_sk.h"
 
+#include "moon.h"
+#include "sunrise.h"
+#include "sunset.h"
+
 #define SCREEN_WIDTH   EPD_WIDTH
 #define SCREEN_HEIGHT  EPD_HEIGHT
 
@@ -58,7 +62,7 @@ float humidity_readings[max_readings]    = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
-long SleepDuration   = 60; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
+long SleepDuration   = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupHour      = 5;  // Don't wakeup until after 07:00 to save battery power
 int  SleepHour       = 22; // Sleep after 23:00 to save battery power
 long StartTime       = 0;
@@ -72,6 +76,14 @@ long Delta           = 30; // ESP32 rtc speed compensation, prevents display at 
 #include "opensans18b.h"
 #include "opensans24b.h"
 
+#include "roboto8.h"
+#include "roboto8b.h"
+#include "roboto10.h"
+#include "roboto10b.h"
+#include "roboto12.h"
+#include "roboto12b.h"
+#include "roboto18b.h"
+#include "roboto24b.h"
 
 
 GFXfont  currentFont;
@@ -361,9 +373,9 @@ void DisplayWeather() {                          // 4.7" e-paper display is 960x
 }
 
 void DisplayGeneralInfoSection() {
-  setFont(OpenSans10B);
+  setFont(roboto10);
   drawString(5, 5, City, LEFT);
-  setFont(OpenSans8B);
+  setFont(roboto8);
   drawString(380, 5, Date_str + "    " + Time_str, LEFT);
 }
 
@@ -404,15 +416,15 @@ void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int C
   drawString(x, y - Cradius - 20,     TXT_N, CENTER);
   drawString(x, y + Cradius + 10,     TXT_S, CENTER);
   drawString(x - Cradius - 15, y - 5, TXT_W, CENTER);
-  drawString(x + Cradius + 10, y - 5, TXT_E, CENTER);
+  drawString(x + Cradius + 15, y - 5, TXT_E, CENTER);
  // drawString(x + 3, y + 50, String(angle, 0) + "°", CENTER);
  // setFont(OpenSans12B);
  // drawString(x, y - 50, WindDegToOrdinalDirection(angle), CENTER);
-  setFont(OpenSans24B);
+  setFont(roboto24b);
   double windspeed_kmh = windspeed * 3.6; // Convert m/s to km/h
   long roundedWindspeed_kmh = (long)(windspeed_kmh + 0.5); // Rounding using casting
-  drawString(x + 3, y - 18, String(roundedWindspeed_kmh), CENTER);
-  setFont(OpenSans8B);
+  drawString(x + 0, y - 20, String(roundedWindspeed_kmh), CENTER);
+  setFont(roboto8);
   drawString(x, y + 25, (Units == "M" ? "km/h" : "mph"), CENTER);
 }
 
@@ -437,17 +449,17 @@ String WindDegToOrdinalDirection(float winddirection) {
 }
 
 void DisplayTemperatureSection(int x, int y) {
-  setFont(OpenSans18B);
-  drawString(x - 30, y, String(WxConditions[0].Temperature, 1) + "°    (" + String(WxConditions[0].Feels, 0) + "°)    " + String(WxConditions[0].Humidity, 0) + "%", LEFT);
-  setFont(OpenSans12B);
-  drawString(x + 10, y + 35, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER); // Show forecast high and Low
+  setFont(roboto24b);
+  drawString(x - 35, y - 20, String(WxConditions[0].Temperature, 1) + "°    (" + String(WxConditions[0].Feels, 0) + "°)    " + String(WxConditions[0].Humidity, 0) + "%", LEFT);
+  setFont(roboto12);
+  drawString(x + 0, y + 40, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER); // Show forecast high and Low
 }
 
 void DisplayForecastTextSection(int x, int y) {
 #define lineWidth 34
-  setFont(OpenSans12B);
+  setFont(roboto12);
   //Wx_Description = WxConditions[0].Main0;          // e.g. typically 'Clouds'
-  String Wx_Description = WxConditions[0].Main0; // e.g. typically 'overcast clouds' ... you choose which
+  String Wx_Description = WxConditions[0].Forecast0; // e.g. typically 'overcast clouds' ... you choose which
   Wx_Description.replace(".", ""); // remove any '.'
   int spaceRemaining = 0, p = 0, charCount = 0, Width = lineWidth;
   while (p < Wx_Description.length()) {
@@ -468,44 +480,64 @@ void DisplayForecastTextSection(int x, int y) {
 }
 
 void DisplayPressureSection(int x, int y, float pressure, String slope) {
-  setFont(OpenSans12B);
-  DrawPressureAndTrend(x - 25, y + 10, pressure, slope);
+  setFont(roboto12);
+  DrawPressureAndTrend(x - 0, y + 10, pressure, slope);
   if (WxConditions[0].Visibility > 0) {
-    Visibility(x + 145, y, String(WxConditions[0].Visibility) + "m");
-    x += 150; // Draw the text in the same positions if one is zero, otherwise in-line
+    Visibility(x + 180, y, String(WxConditions[0].Visibility) + "m");
+    x += 180; // Draw the text in the same positions if one is zero, otherwise in-line
   }
-  if (WxConditions[0].Cloudcover > 0) CloudCover(x + 145, y, WxConditions[0].Cloudcover);
+  if (WxConditions[0].Cloudcover > 0) CloudCover(x + 180, y, WxConditions[0].Cloudcover);
 }
 
 void DisplayForecastWeather(int x, int y, int index) {
   int fwidth = 90;
   x = x + fwidth * index;
   DisplayConditionsSection(x + fwidth / 2, y + 90, WxForecast[index].Icon, SmallIcon);
-  setFont(OpenSans10B);
+  setFont(roboto10);
   drawString(x + fwidth / 2, y + 30, String(ConvertUnixTime(WxForecast[index].Dt + WxConditions[0].Timezone).substring(0, 5)), CENTER);
   drawString(x + fwidth / 2, y + 125, String(WxForecast[index].High, 0) + "°/" + String(WxForecast[index].Low, 0) + "°", CENTER);
 }
 
 void DisplayAstronomySection(int x, int y) {
-  setFont(OpenSans10B);
-  drawString(x + 5, y + 30, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5) + " " + TXT_SUNRISE, LEFT);
-  drawString(x + 5, y + 50, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5) + " " + TXT_SUNSET, LEFT);
+  setFont(roboto10);
   time_t now = time(NULL);
   struct tm * now_utc  = gmtime(&now);
-  const int day_utc    = now_utc->tm_mday;
-  const int month_utc  = now_utc->tm_mon + 1;
-  const int year_utc   = now_utc->tm_year + 1900;
-  drawString(x + 5, y + 75, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), LEFT);
-  DrawMoon(x + 160, y - 15, day_utc, month_utc, year_utc, Hemisphere);
+  //drawString(x + 5, y + 102, MoonPhase(now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, Hemisphere), LEFT);
+  DrawMoonImage(x + 10, y + 23); // Different references!
+  DrawMoon(x - 28, y - 15, 75, now_utc->tm_mday, now_utc->tm_mon + 1, now_utc->tm_year + 1900, Hemisphere); // Spaced at 1/2 moon size, so 10 - 75/2 = -28
+  drawString(x + 115, y + 40, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), LEFT); // Sunrise
+  drawString(x + 115, y + 80, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), LEFT);  // Sunset
+  DrawSunriseImage(x + 180, y + 20);
+  DrawSunsetImage(x + 180, y + 60);
 }
 
-void DrawMoon(int x, int y, int dd, int mm, int yy, String hemisphere) {
-  const int diameter = 75;
+void DrawMoonImage(int x, int y) {
+  Rect_t area = {
+    .x = x, .y = y, .width  = moon_width, .height =  moon_height
+  };
+  epd_draw_grayscale_image(area, (uint8_t *) moon_data);
+}
+
+void DrawSunriseImage(int x, int y) {
+  Rect_t area = {
+    .x = x, .y = y, .width  = sunrise_width, .height =  sunrise_height
+  };
+  epd_draw_grayscale_image(area, (uint8_t *) sunrise_data);
+}
+
+void DrawSunsetImage(int x, int y) {
+  Rect_t area = {
+    .x = x, .y = y, .width  = sunset_width, .height =  sunset_height
+  };
+  epd_draw_grayscale_image(area, (uint8_t *) sunset_data);
+}
+
+void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, String hemisphere) {
   double Phase = NormalizedMoonPhase(dd, mm, yy);
   hemisphere.toLowerCase();
   if (hemisphere == "south") Phase = 1 - Phase;
   // Draw dark part of moon
-  fillCircle(x + diameter - 1, y + diameter, diameter / 2 + 1, LightGrey);
+  fillCircle(x + diameter - 1, y + diameter, diameter / 2 + 1, DarkGrey);
   const int number_of_lines = 90;
   for (double Ypos = 0; Ypos <= number_of_lines / 2; Ypos++) {
     double Xpos = sqrt(number_of_lines / 2 * number_of_lines / 2 - Ypos * Ypos);
@@ -583,9 +615,10 @@ void DisplayForecastSection(int x, int y) {
   int gx = (SCREEN_WIDTH - gwidth * 4) / 5 + 8;
   int gy = (SCREEN_HEIGHT - gheight - 30);
   int gap = gwidth + gx;
+  setFont(roboto10);
   // (x,y,width,height,MinValue, MaxValue, Title, Data Array, AutoScale, ChartMode)
   DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
+  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 0, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
   DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100,   TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_off, barchart_off);
   if (SumOfPrecip(rain_readings, max_readings) >= SumOfPrecip(snow_readings, max_readings))
     DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
@@ -646,8 +679,8 @@ void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
 }
 
 void DisplayStatusSection(int x, int y, int rssi) {
-  setFont(OpenSans8B);
-  DrawRSSI(x + 305, y + 15, rssi);
+  setFont(roboto8);
+  // DrawRSSI(x + 305, y + 15, rssi);
   DrawBattery(x + 220, 20);
 }
 
@@ -710,7 +743,7 @@ void DrawBattery(int x, int y) {
     //drawRect(x + 25, y - 14, 40, 15, Black);
     //fillRect(x + 65, y - 10, 4, 7, Black);
     //fillRect(x + 27, y - 12, 36 * percentage / 100.0, 11, Black);
-    drawString(x + 25, 10, String(percentage) + "%", LEFT);
+    drawString(x + 90, 10, String(percentage) + "%", LEFT);
   }
 }
 
@@ -987,7 +1020,7 @@ void Nodata(int x, int y, bool IconSize, String IconName) {
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode) {
 #define auto_scale_margin 0 // Sets the autoscale increment, so axis steps up fter a change of e.g. 3
 #define y_minor_axis 5      // 5 y-axis division markers
-  setFont(OpenSans10B);
+  setFont(roboto8);
   int maxYscale = -10000;
   int minYscale =  10000;
   int last_x, last_y;
@@ -1006,7 +1039,7 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
   last_x = x_pos + 1;
   last_y = y_pos + (Y1Max - constrain(DataArray[1], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight;
   drawRect(x_pos, y_pos, gwidth + 3, gheight + 2, Grey);
-  drawString(x_pos - 20 + gwidth / 2, y_pos - 28, title, CENTER);
+  drawString(x_pos - 0 + gwidth / 2, y_pos - 28, title, CENTER);
   for (int gx = 0; gx < readings; gx++) {
     x2 = x_pos + gx * gwidth / (readings - 1) - 1 ; // max_readings is the global variable that sets the maximum data that can be plotted
     y2 = y_pos + (Y1Max - constrain(DataArray[gx], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight + 1;
@@ -1026,20 +1059,20 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
       if (spacing < y_minor_axis) drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes), y_pos + (gheight * spacing / y_minor_axis), gwidth / (2 * number_of_dashes), Grey);
     }
     if ((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing) < 5 || title == TXT_PRESSURE_IN) {
-      drawString(x_pos - 10, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
+      drawString(x_pos - 5, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
     }
     else
     {
       if (Y1Min < 1 && Y1Max < 10) {
-        drawString(x_pos - 3, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
+        drawString(x_pos - 5, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
       }
       else {
-        drawString(x_pos - 7, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 0), RIGHT);
+        drawString(x_pos - 5, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 0), RIGHT);
       }
     }
   }
   for (int i = 0; i < 3; i++) {
-    drawString(20 + x_pos + gwidth / 3 * i, y_pos + gheight + 10, String(i) + "d", LEFT);
+    drawString(20 + x_pos + gwidth / 3 * i, y_pos + gheight + 5, String(i) + "d", LEFT);
     if (i < 2) drawFastVLine(x_pos + gwidth / 3 * i + gwidth / 3, y_pos, gheight, LightGrey);
   }
 }
